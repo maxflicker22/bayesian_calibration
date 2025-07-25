@@ -1,0 +1,12 @@
+arviz
+matplotlib
+numpy
+pandas
+xarray
+pymc
+scikit-learn
+jax
+jaxlib
+numpyro
+pyDOE
+json5
