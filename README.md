@@ -1,0 +1,73 @@
+# Bacali: Bayesian Model Calibration Library
+
+Bacali is a Python library designed for performing Bayesian model calibration using Hamiltonian Markov Chain Monte Carlo (HMC). It provides tools for setting up models, sampling from posterior distributions, and analyzing the results through various statistical plots.
+
+## Features
+
+- **Bayesian Calibration**: Utilize the `BayesCalibrator` class to calibrate models based on observed data.
+- **MCMC Sampling**: Efficiently sample from the posterior distribution using Hamiltonian Monte Carlo.
+- **Statistical Analysis**: Generate and visualize MCMC sampling statistics, including trace plots and autocorrelation plots.
+
+## Installation
+
+To install Bacali and its dependencies, you can use pip:
+
+```
+pip install -e .
+```
+
+This command installs the package in editable mode, allowing you to make changes to the code without reinstalling.
+
+## Requirements
+
+The following packages are required:
+
+- jax
+- numpyro
+- numpy
+- arviz
+
+These dependencies are listed in the `requirements.txt` file and will be installed automatically when you install the package.
+
+## Usage
+
+Here is a simple example of how to use the `BayesCalibrator` class:
+
+```python
+from bacali.sampler import BayesCalibrator
+
+# Define your model function and observed data
+def model_function(params, **kwargs):
+    # Your model implementation here
+    pass
+
+observed_data = [...]  # Your observed data here
+model_parameters_string = ["alpha", "beta", "gamma"]
+
+# Initialize the BayesCalibrator
+calibrator = BayesCalibrator(model_function, model_parameters_string, observed_data)
+
+# Adjust priors if necessary
+calibrator.adjust_prior(prior_mean=0.5, prior_std=0.2)
+
+# Sample from the chain
+calibrator.sample_from_chain(num_samples=1000)
+```
+
+## Testing
+
+To run the tests for the Bacali library, navigate to the `tests` directory and execute:
+
+```
+pytest
+```
+
+This will run all unit tests defined in `test_sampler.py`.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a pull request or open an issue for any enhancements or bug fixes.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for more details.

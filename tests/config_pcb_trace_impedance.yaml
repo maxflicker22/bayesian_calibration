@@ -1,0 +1,14 @@
+pcb_trace:
+  epsilon_r: 6.8784
+  height_mm: 0.366776
+  thickness_mm: 0.074204
+  width_mm: 0.56526
+material:
+  name: "FR4"
+  notes: "Standard PCB substrate"
+pcb_trace_ranges:
+  epsilon_r: [2.0, 10.0]
+  height_mm: [0.08, 1.0]
+  thickness_mm: [0.003, 0.105]
+  width_mm: [0.10, 2.0]
+  impedance: [30.0, 120.0]  
