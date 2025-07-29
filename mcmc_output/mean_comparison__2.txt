@@ -1,0 +1,18 @@
+
+--- Mean Comparison - Scaled Range ---
+True mean of eps_scaled (observations):      0.6098
+Posterior mean of eps_scaled (samples):     0.4710
+Absolute difference (eps_scaled):           0.1388
+------------------------------------------------------------
+True mean of h_scaled (observations):      0.3117
+Posterior mean of h_scaled (samples):     0.5170
+Absolute difference (h_scaled):           0.2053
+------------------------------------------------------------
+True mean of t_scaled (observations):      0.6981
+Posterior mean of t_scaled (samples):     0.4900
+Absolute difference (t_scaled):           0.2081
+------------------------------------------------------------
+True mean of w_scaled (observations):      0.2449
+Posterior mean of w_scaled (samples):     0.5010
+Absolute difference (w_scaled):           0.2561
+------------------------------------------------------------

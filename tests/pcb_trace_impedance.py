@@ -56,38 +56,7 @@ from helper_functions.gaussian_process_functions import gp_posterior
 print(jax.devices())
 
 
-#-----------------------------------------------------------------------------------------------------
-######################--Functions--######################
-
-######--Plotting- Functions--######
-
-# Analysis of the means (true and posterior)
-def mean_comparison(paras_obs, para_string, mcmc, outdir="pcb_trace_impedance_example_output"):
-    # Ensure output directory exists
-    os.makedirs(outdir, exist_ok=True)
-
-    # Ground truth means
-    true_mean = jnp.mean(paras_obs)
-    # Posterior means from NumPyro
-    posterior_mean_ = jnp.mean(mcmc.get_samples()[para_string])
-
-    # Prepare result string
-    result = (
-        "\n--- Mean Comparison - Scaled Range ---\n"
-        f"True mean of {para_string} from observations:      {true_mean:.4f}\n"
-        f"Posterior mean of {para_string} (NumPyro samples): {posterior_mean_:.4f}\n"
-        f"Absolute difference ({para_string}):               {abs(true_mean - posterior_mean_):.4f}\n"
-    )
-
-    # Print to console
-    print(result)
-
-    # Save to file
-    fname = os.path.join(outdir, f"mean_comparison_{para_string}.txt")
-    with open(fname, "w") as f:
-        f.write(result)
-
-
+    
 #-----------------------------------------------------------------------------------------------------
 ######################--Load True Material Data--######################
 config = load_pcb_config('tests/config_pcb_trace_impedance.yaml')
@@ -222,10 +191,11 @@ Bacali = BayesCalibrator(
     },
     observed_data=scaled_y_obs)
 
-
+# Optional: adjust Prior 
+Bacali.adjust_prior(use_uniform_prior=True) # Uniform prior for all parameters
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=2000)
+Bacali.sample_from_chain(num_samples=1000, num_chains=1)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -248,29 +218,30 @@ real_true_y_obs = jnp.mean(true_y_obs)
 mae = abs(float(real_true_y_obs) - float(y_pred_mean_real.item()))
 rmse = mae  # Für einen einzelnen Wert sind MAE und RMSE identisch
 
+mae_scaled = abs(float(scaled_y_obs.item()) - float(scaled_y_pred_mean.item()))
+
 print("\n--- GP Emulator Prediction Error ---")
 print(f"Absolute Error:       {mae:.4f}")
+print(f"Absolute Error scaled range:       {mae_scaled:.4f}")
 print()
 
-# --- Mean Comparison ---
-
-mean_comparison(scaled_paras_obs[0], para_strings[0], mcmc) # eps
-mean_comparison(scaled_paras_obs[1], para_strings[1], mcmc) # h
-mean_comparison(scaled_paras_obs[2], para_strings[2], mcmc) # t
-mean_comparison(scaled_paras_obs[3], para_strings[3], mcmc) # w
-
-
 # --- Compare Impedance ---
-# Load MCMC samples from JSON file
-with open("pcb_trace_impedance_example_output/mcmc_summary.json", "r") as f:
-    mcmc_data = json.load(f)
+# Load Mcmc summarize Results
+mcmc_summary = Bacali.last_mcmc_summary
+print(mcmc_summary["mean"][:-1])
 
 # Helper functions (assumed to be defined elsewhere)
 # inverse_min_max_scale_jax, impedance_pcb_trace, true_y_obs,
 # eps_r_min, eps_r_max, h_min, h_max, t_min, t_max, w_min, w_max
 
 # Get posterior mean for each scaled parameter
-posterior_means = {p: mcmc_data[p]["mean"] for p in para_strings}
+posterior_means = mcmc_summary["mean"]
+
+# Mean comparison
+Bacali.mean_comparison(
+    mean_true_parameters=scaled_paras_obs,
+    posterior_sampled_means=posterior_means,
+    param_names=Bacali.model_parameters_string)
 
 # Rescale to real parameter space
 found_eps_r = inverse_min_max_scale_jax(posterior_means["eps_scaled"], eps_r_min, eps_r_max)
@@ -287,4 +258,39 @@ print("\n--- Impedance Comparison ---")
 print(f"True Impedance:      {float(true_y_obs):.4f}")
 print(f"Found Impedance:     {float(found_impedance):.4f}")
 print(f"Absolute Error:      {abs(float(true_y_obs) - float(found_impedance)):.4f}")
+print(f"Relativ Error:      {abs(float(true_y_obs) - float(found_impedance))/float(true_y_obs):.4f}")
+
+
+# Save Data for experiments
+# Store True, Found, Covariance
+Bacali.store_model_values_results(
+    true_value=float(true_y_obs),
+    found_value=float(found_impedance)
+)
+
+# Store configurations within 1% of found impedance
+Bacali.store_configurations_within_delta(
+    true_model_function=impedance_pcb_trace,
+    ref_value=float(found_impedance),
+    delta=0.01,
+    inverse_fn=inverse_min_max_scale_jax,
+    params=[(eps_r_min, eps_r_max),
+      (h_min, h_max),
+      (t_min, t_max),
+      (w_min, w_max)],
+    fname_suffix="found_impedance"
+)
+
+# Store configurations within 1% of found impedance
+Bacali.store_configurations_within_delta(
+    true_model_function=impedance_pcb_trace,
+    ref_value=float(true_y_obs),
+    delta=0.01,
+    inverse_fn=inverse_min_max_scale_jax,
+    params=[(eps_r_min, eps_r_max),
+      (h_min, h_max),
+      (t_min, t_max),
+      (w_min, w_max)],
+    fname_suffix="true_impedance"
+)
 
