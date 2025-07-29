@@ -155,11 +155,13 @@ class BayesCalibrator:
         mcmc.print_summary()
         
         # Get samples
-        samples = mcmc.get_samples(group_by_chain=True)
-        self.last_mcmc_samples = samples
+        samples_grouped = mcmc.get_samples(group_by_chain=True)
+        self.last_samples_grouped = samples_grouped
+        samples_flat = mcmc.get_samples(group_by_chain=False)
+        self.last_samples_flat = samples_flat
         # Save samples as .npz
         npz_fname = self.get_unique_filename(self.output_dir, "mcmc_samples", para_string="", ext=".npz")
-        np.savez(npz_fname, **{k: np.array(v) for k, v in samples.items()})
+        np.savez(npz_fname, **{k: np.array(v) for k, v in samples_grouped.items()})
 
         # Convert to InferenceData and save as .nc
         idata = az.from_numpyro(mcmc)
@@ -250,7 +252,7 @@ class BayesCalibrator:
         result = "".join(result_lines)
 
         # Print to console
-        print(result)
+        #print(result)
 
         # Save to file
         fname = self.get_unique_filename(self.output_dir, "mean_comparison", para_string="", ext=".txt", fixed_index=self.last_sample_index)
@@ -262,32 +264,46 @@ class BayesCalibrator:
         """
         Store true value, found value, and covariance matrix of posterior samples in CSV.
         """
-        # 1. Covariance matrix from posterior samples
-        param_names = self.model_parameters_string  # e.g. ["eps_scaled", "h_scaled", ...]
-        samples = self.last_mcmc_samples
-        param_matrix = jnp.column_stack([samples[p] for p in param_names])
-        cov_matrix = jnp.cov(param_matrix, rowvar=False)
-
-        # 2. Save True and Found impedance + covariance matrix
+        # 1. Save True and Found impedance + covariance matrix
         data = {
             "True_Value": [true_value],
             "Found_Value": [found_value]
         }
         df_main = pd.DataFrame(data)
-        cov_df = pd.DataFrame(cov_matrix, index=param_names, columns=param_names)
+        
 
         # Create output folder
-        analysis_dir = os.path.join(self.output_dir, "model_analysis")
-        os.makedirs(analysis_dir, exist_ok=True)
+        analysis_model_values_dir = os.path.join(self.output_dir, "model_analysis/experiment_1/model_values")
+        os.makedirs(analysis_model_values_dir, exist_ok=True)
         
         # Store impedance values
-        fname = self.get_unique_filename(analysis_dir, "model_values", para_string=fname_suffix, ext=".csv", fixed_index=self.last_sample_index)
+        fname = self.get_unique_filename(analysis_model_values_dir, "model_values", para_string=fname_suffix, ext=".csv", fixed_index=self.last_sample_index)
         df_main.to_csv(fname, index=False)
-
+        print(f"Stored model values to: {fname}")
+    
+        
+    def store_posterior_covariance(self, fname_suffix=""):
+        """
+        Store covariance matrix of posterior samples in CSV.
+        """
+        # 1. Covariance matrix from posterior samples
+        param_names = self.model_parameters_string  # e.g. ["eps_scaled", "h_scaled", ...]
+        samples = self.last_samples_flat  # Use the last flat samples
+        param_matrix = jnp.column_stack([samples[p] for p in param_names])
+        cov_matrix = jnp.cov(param_matrix, rowvar=False)
+        
+        # 2. Save covariance matrix as DataFrame
+        cov_df = pd.DataFrame(cov_matrix, index=param_names, columns=param_names)
+        
+        # Create output folder
+        analysis_posterior_covariance_dir = os.path.join(self.output_dir, "model_analysis/experiment_1/posterior_covariance")
+        os.makedirs(analysis_posterior_covariance_dir, exist_ok=True)
+        
         # Store covariance matrix separately
-        fname = self.get_unique_filename(analysis_dir, "posterior_covariance", para_string="", ext=".csv", fixed_index=self.last_sample_index)
+        fname = self.get_unique_filename(analysis_posterior_covariance_dir, "posterior_covariance", para_string="", ext=".csv", fixed_index=self.last_sample_index)
         cov_df.to_csv(fname, index=False)
-        print(f"Stored model values and covariance matrix in '{analysis_dir}'")
+        print(f"Stored model values and covariance matrix in '{analysis_posterior_covariance_dir}'")
+
         
         
         
@@ -297,7 +313,7 @@ class BayesCalibrator:
         Allows passing a dynamic inverse scaling function with *params for flexibility.
         """
         # Extract posterior samples
-        samples = self.last_mcmc_samples
+        samples = self.last_samples_flat  # Use the last flat samples
         param_names = self.model_parameters_string
 
         # Dynamically inverse transform parameters if inverse_fn is provided
@@ -323,7 +339,7 @@ class BayesCalibrator:
         matching_configs = pd.DataFrame(config_dict)
 
         # Create output directory
-        analysis_dir = os.path.join(self.output_dir, "model_analysis")
+        analysis_dir = os.path.join(self.output_dir, "model_analysis/experiment_1/posterior_configs")
         os.makedirs(analysis_dir, exist_ok=True)
 
         # Store results in CSV
