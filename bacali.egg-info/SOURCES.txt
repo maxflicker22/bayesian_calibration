@@ -9,4 +9,3 @@ bacali.egg-info/SOURCES.txt
 bacali.egg-info/dependency_links.txt
 bacali.egg-info/requires.txt
 bacali.egg-info/top_level.txt
-tests/test_implementation.py

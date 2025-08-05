@@ -49,75 +49,66 @@ from sklearn.preprocessing import MinMaxScaler
 from pyDOE import lhs
 import json
 from helper_functions.functions import load_pcb_config, min_max_scale_jax
-from helper_functions.functions import inverse_min_max_scale_jax, impedance_pcb_trace
+from helper_functions.functions import inverse_min_max_scale_jax, charging_capacitor_model, charging_capacitor_taylor_7, charging_capacitor_taylor_3
 from helper_functions.gaussian_process_functions import gp_posterior
-from helper_functions.analysis import store_model_values_results, store_posterior_covariance, mean_comparison
-
-import bacali
-print(bacali.__file__)
-from bacali import BayesCalibrator
-print(BayesCalibrator.__init__.__code__.co_varnames)
 
 # print available devices for parallel
 print(jax.devices())
 
-
     
 #-----------------------------------------------------------------------------------------------------
 ######################--Load True Material Data--######################
-config = load_pcb_config('tests/config_pcb_trace_impedance.yaml')
+config = load_pcb_config('tests/config_capacitor.yaml')
 
 # Store true values from config for later use
-true_eps_r = config['pcb_trace']['epsilon_r']
-true_h     = config['pcb_trace']['height_mm']
-true_t     = config['pcb_trace']['thickness_mm']
-true_w     = config['pcb_trace']['width_mm']
-true_material = config['material']['name']
+true_u_0 = config['charging_capacitor']['u_0']
+true_tau     = config['charging_capacitor']['tau']
 
+t_a = jnp.array(config['charging_capacitor']['t_a'])
 # Load ranges from config
-ranges = config['pcb_trace_ranges']
-eps_r_min, eps_r_max = ranges['epsilon_r']
-h_min, h_max = ranges['height_mm']
-t_min, t_max = ranges['thickness_mm']
-w_min, w_max = ranges['width_mm']
-impedance_min, impedance_max = ranges['impedance']
+ranges = config['charging_capacitor_ranges']
+u_0_min, u_0_max = ranges['u_0']
+tau_min, tau_max = ranges['tau']
+u_t_min, u_t_max = ranges['u_t']
+
 
 # Print of true values
-print("Trace width (mm):", true_w)
-print("Trace thickness (mm):", true_t)
-print("Substrate height (mm):", true_h)
-print("Epsilon r:", true_eps_r)
-print("Material:", true_material)
+print("true_u_0:", true_u_0)
+print("true_tau:", true_tau)
 
 #-----------------------------------------------------------------------------------------------------
 ######################--Generate Observed-Data--######################
 
 # Number of Observed samples
-n_samples = 1
+n_samples = 100
 
 # Scale true values using your scaling function
-scaled_true_eps_r = min_max_scale_jax(true_eps_r, eps_r_min, eps_r_max)
-scaled_true_h     = min_max_scale_jax(true_h, h_min, h_max)
-scaled_true_t     = min_max_scale_jax(true_t, t_min, t_max)
-scaled_true_w     = min_max_scale_jax(true_w, w_min, w_max)
+scaled_true_u_0 = min_max_scale_jax(true_u_0, u_0_min, u_0_max)
+scaled_true_tau     = min_max_scale_jax(true_tau, tau_min, tau_max)
+
 
 # Parameter strings
-para_strings = ["eps_scaled", "h_scaled", "t_scaled", "w_scaled"]
+para_strings = ["u0_scaled", "tau_scaled"]
 
 # In ein gemeinsames Array stapeln
-real_true_paras_obs = jnp.stack([true_eps_r, true_h, true_t, true_w], axis=0)  # shape: (n_samples, n_paras)
-scaled_paras_obs = jnp.stack([scaled_true_eps_r, scaled_true_h, scaled_true_t, scaled_true_w], axis=0)# shape: (n_samples, n_paras)
+real_true_paras_obs = jnp.array([true_u_0, true_tau])  # shape (2,)
+scaled_paras_obs = jnp.stack([scaled_true_u_0, scaled_true_tau], axis=0)# shape: (n_samples, n_paras)
 
-# Generate Observational Data (True)
-y_obs_noise_free = jnp.array([impedance_pcb_trace(*real_true_paras_obs)])
+# Berechne die "wahre" Modellkurve einmal
+y_obs_noise_free = charging_capacitor_model(t_a, *real_true_paras_obs)  # shape: (len(t_a),)
 
-# Add White Noise
+# Erweitere für Broadcasting auf (1, len(t_a))
+y_obs_noise_free = y_obs_noise_free[None, :]  # shape: (1, len(t_a))
+
+# Generiere White Noise für alle Samples
 key_noise = jax.random.PRNGKey(43)
-noise = 0.1000 * jax.random.normal(key_noise, shape=n_samples)
-true_y_obs = y_obs_noise_free + noise
+noise = 0.01 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
+
+# Addiere Noise zu jeder Kurve
+true_y_obs = y_obs_noise_free + noise  # shape: (n_samples, len(t_a))
 
 # scale y_obs values between 0 and 1
-scaled_y_obs = min_max_scale_jax(true_y_obs, impedance_min, impedance_max)
+scaled_y_obs = min_max_scale_jax(true_y_obs, u_t_min, u_t_max)
 
 #-----------------------------------------------------------------------------------------------------
 ######################--Generate Training-Data--######################
@@ -134,29 +125,26 @@ x_lhs = jnp.array(x_lhs)
 scaled_x_train = jnp.zeros_like(x_lhs)
 scaled_x_train = scaled_x_train.at[:, 0].set(x_lhs[:, 0])  # already in [0,1]
 scaled_x_train = scaled_x_train.at[:, 1].set(x_lhs[:, 1])
-scaled_x_train = scaled_x_train.at[:, 2].set(x_lhs[:, 2])
-scaled_x_train = scaled_x_train.at[:, 3].set(x_lhs[:, 3])
+
 
 # Transform LHS samples to real parameter space using min/max from config
 x_train = jnp.zeros_like(x_lhs)
-x_train = x_train.at[:, 0].set(inverse_min_max_scale_jax(x_lhs[:, 0], eps_r_min, eps_r_max))  # eps_r
-x_train = x_train.at[:, 1].set(inverse_min_max_scale_jax(x_lhs[:, 1], h_min, h_max))          # h
-x_train = x_train.at[:, 2].set(inverse_min_max_scale_jax(x_lhs[:, 2], t_min, t_max))          # t
-x_train = x_train.at[:, 3].set(inverse_min_max_scale_jax(x_lhs[:, 3], w_min, w_max))          # w
+x_train = x_train.at[:, 0].set(inverse_min_max_scale_jax(x_lhs[:, 0], u_0_min, u_0_max))  # eps_r
+x_train = x_train.at[:, 1].set(inverse_min_max_scale_jax(x_lhs[:, 1], tau_min, tau_max))          # h
 
 # Calculate y_train values out of real space x_train
 y_train = jnp.array([
-    impedance_pcb_trace(*paras)
+    charging_capacitor_model(t_a, *paras)
     for paras in x_train
 ])
 
 # Skaliere y_train auf [0, 1] mit min_max_scale_jax
-scaled_y_train = min_max_scale_jax(y_train, impedance_min, impedance_max)
+scaled_y_train = min_max_scale_jax(y_train, u_t_min, u_t_max)
 
 #-----------------------------------------------------------------------------------------------------
 ######################--Set Up GP-Model--######################
-length_scales = [1e-4, 1.0, 1e-4, 1.0]
-length_bounds = [(1e-2, 1e2), (1e-2, 1e2), (1e-2, 1e2), (1e-2, 1e2)]  # jetzt korrekt: 2 Tupel für 2 Parameter
+length_scales = [1e-4, 1.0]
+length_bounds = [(1e-2, 1e2), (1e-2, 1e2)]  # jetzt korrekt: 2 Tupel für 2 Parameter
 
 # Define a 2D RBF kernel with separate length scales per dimension
 rbf_kernel = RBF(length_scale=length_scales, length_scale_bounds=length_bounds)
@@ -168,7 +156,7 @@ gp = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
 
 #-----------------------------------------------------------------------------------------------------
 ######################--Train GP Emulator--######################
-
+print("scaled_y_train:", scaled_y_train)
 # Fit the Gaussian Process model to the training data
 gp.fit(scaled_x_train, scaled_y_train)
 
@@ -196,13 +184,13 @@ Bacali = BayesCalibrator(
         "noise": gp_noise
     },
     observed_data=scaled_y_obs,
-    output_dir="tests/output_pcb_trace_impedance")
+    output_dir="mcmc_output_capacitor")
 
 # Optional: adjust Prior 
-Bacali.adjust_prior(use_uniform_prior=True) # Uniform prior for all parameters
+Bacali.adjust_prior() # Uniform prior for all parameters
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=1000, num_chains=1)
+Bacali.sample_from_chain(num_samples=10000, num_chains=4)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -211,25 +199,23 @@ Bacali.sample_from_chain(num_samples=1000, num_chains=1)
 # --- GP Prediction ---
 scaled_y_pred_mean, scaled_y_pred_std = gp.predict(scaled_paras_obs.reshape(1, -1), return_std=True)
 
-scaled_eps = scaled_paras_obs[0]
-scaled_h = scaled_paras_obs[1]
-scaled_t = scaled_paras_obs[2]
-scaled_w = scaled_paras_obs[3]
+scaled_u_0 = scaled_paras_obs[0]
+scaled_tau = scaled_paras_obs[1]
 
 # Re-transform GP predictions from [0, 1] back to real impedance space
-y_pred_mean_real = inverse_min_max_scale_jax(scaled_y_pred_mean, impedance_min, impedance_max)
-y_pred_std_real = scaled_y_pred_std * (impedance_max - impedance_min)  # Varianz/Std skaliert mit der Range!
+y_pred_mean_real = inverse_min_max_scale_jax(scaled_y_pred_mean, u_t_min, u_t_max)
+y_pred_std_real = scaled_y_pred_std * (u_t_max - u_t_min)  # Varianz/Std skaliert mit der Range!
 
 real_true_y_obs = jnp.mean(true_y_obs)
+y_pred_mean_samples_real = jnp.mean(y_pred_mean_real)
 
-mae = abs(float(real_true_y_obs) - float(y_pred_mean_real.item()))
-rmse = mae  # Für einen einzelnen Wert sind MAE und RMSE identisch
 
-mae_scaled = abs(float(scaled_y_obs.item()) - float(scaled_y_pred_mean.item()))
+mae = abs(float(real_true_y_obs) - float(y_pred_mean_samples_real))
+#mae_scaled = abs(float(scaled_y_obs.item()) - float(scaled_y_pred_mean.item()))
 
 print("\n--- GP Emulator Prediction Error ---")
 print(f"Absolute Error:       {mae:.4f}")
-print(f"Absolute Error scaled range:       {mae_scaled:.4f}")
+#print(f"Absolute Error scaled range:       {mae_scaled:.4f}")
 print()
 
 # --- Compare Impedance ---
@@ -244,22 +230,89 @@ print(mcmc_summary["mean"][:-1])
 # Get posterior mean for each scaled parameter
 posterior_means = mcmc_summary["mean"]
 
+# Mean comparison
+Bacali.mean_comparison(
+    mean_true_parameters=scaled_paras_obs,
+    posterior_sampled_means=posterior_means,
+    param_names=Bacali.model_parameters_string)
+
 # Rescale to real parameter space
-found_eps_r = inverse_min_max_scale_jax(posterior_means["eps_scaled"], eps_r_min, eps_r_max)
-found_h     = inverse_min_max_scale_jax(posterior_means["h_scaled"], h_min, h_max)
-found_t     = inverse_min_max_scale_jax(posterior_means["t_scaled"], t_min, t_max)
-found_w     = inverse_min_max_scale_jax(posterior_means["w_scaled"], w_min, w_max)
+found_u_0 = inverse_min_max_scale_jax(posterior_means["u0_scaled"], u_0_min, u_0_max)
+found_tau     = inverse_min_max_scale_jax(posterior_means["tau_scaled"], tau_min, tau_max)
+
 
 # Calculate impedance for found parameters
-found_impedance = impedance_pcb_trace(found_eps_r, found_h, found_t, found_w)
-true_y_obs = impedance_pcb_trace(true_eps_r, true_h, true_t, true_w)
+found_u_t = charging_capacitor_model(t_a, found_u_0, found_tau).squeeze()
+true_y_obs = charging_capacitor_model(t_a, true_u_0, true_tau).squeeze()
 
 # Compare to true impedance
 print("\n--- Impedance Comparison ---")
-print(f"True Impedance:      {float(true_y_obs):.4f}")
-print(f"Found Impedance:     {float(found_impedance):.4f}")
-print(f"Absolute Error:      {abs(float(true_y_obs) - float(found_impedance)):.4f}")
-print(f"Relativ Error:      {abs(float(true_y_obs) - float(found_impedance))/float(true_y_obs):.4f}")
+
+print(f"True U(t)):      {true_y_obs}")
+print(f"Found U(t):     {found_u_t}")
+print(f"Absolute Error:      {abs(true_y_obs - found_u_t)}")
+print(f"Relativ Error:      {abs(true_y_obs - found_u_t)/abs(true_y_obs)}")
 
 
+# Save Data for experiments
+# Store True, Found, Covariance
+Bacali.store_model_values_results(
+    true_value=true_y_obs,
+    found_value=found_u_t
+)
 
+
+# Plot Model: Compare true vs. found parameters, plot vertical lines for all t_a values
+
+# Zeitbereich für Plot
+t_plot = np.linspace(0, float(t_a.max()) + 1, 200)
+
+# Berechne Spannung für true und found Parameter über t_plot
+v_true = charging_capacitor_model(t_plot, float(true_u_0), float(true_tau))
+v_found = charging_capacitor_model(t_plot, float(found_u_0), float(found_tau))
+
+plt.figure(figsize=(8, 5))
+plt.plot(t_plot, v_true, label=f"True: $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="green", linewidth=2)
+plt.plot(t_plot, v_found, label=f"Found: $u_0$={float(found_u_0):.3f}, $\\tau$={float(found_tau):.3f}", color="red", linestyle="--", linewidth=2)
+
+# Vertikale Linien für alle t_a Werte
+for t_val in np.array(t_a):
+    plt.axvline(float(t_val), color='blue', linestyle=':', alpha=0.7, label='t_a' if t_val == t_a[0] else None)
+
+plt.xlabel("Time $t$")
+plt.ylabel("Voltage $U(t)$")
+plt.title(f"Comparison of True vs. Found Parameters Over Time With {len(t_a)} Values")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+# Save plot as PNG in output directory
+output_dir = "mcmc_output_capacitor"
+plt.savefig(os.path.join(output_dir, f"true_vs_found_model_comparison_{len(t_a)}_time_values.png"))
+plt.show()
+
+"""
+# Store configurations within 1% of found impedance
+Bacali.store_configurations_within_delta(
+    true_model_function=charging_capacitor_model,
+    ref_value=found_u_t,
+    true_model_func_params=(t_a),
+    delta=0.01,
+    inverse_fn=inverse_min_max_scale_jax,
+    params=[(u_0_min, u_0_max),
+      (tau_min, tau_max)],
+    fname_suffix="found_u_t"
+)
+
+# Store configurations within 1% of found impedance
+Bacali.store_configurations_within_delta(
+    true_model_function=charging_capacitor_model,
+    ref_value=true_y_obs,
+    delta=0.01,
+    true_model_func_params=(t_a),
+    inverse_fn=inverse_min_max_scale_jax,
+    params=[(u_0_min, u_0_max),
+      (tau_min, tau_max)],
+    fname_suffix="true_u_t"
+)
+
+"""
