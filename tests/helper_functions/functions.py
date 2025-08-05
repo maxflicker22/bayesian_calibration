@@ -2,6 +2,42 @@ import yaml
 import jax
 import jax.numpy as jnp
 
+
+def charging_capacitor_model(t, u_0, tau):
+    """
+    Model for the voltage across a charging capacitor.
+    """
+    return u_0 * (1 - jnp.exp(-t / tau))
+
+# Taylor expansion with 1 term
+# u ≈ u_0 * (t/tau)
+def charging_capacitor_taylor_1(t, u_0, tau):
+    return u_0 * (t / tau)
+
+# Taylor expansion with 2 terms
+# u ≈ u_0 * [ (t/tau) - (t/tau)^2/2! ]
+def charging_capacitor_taylor_2(t, u_0, tau):
+    return u_0 * ((t / tau) - (t / tau)**2 / 2)
+
+# Taylor expansion with 3 terms
+# u ≈ u_0 * [ (t/tau) - (t/tau)^2/2! + (t/tau)^3/3! ]
+def charging_capacitor_taylor_3(t, u_0, tau):
+    return u_0 * ((t / tau) - (t / tau)**2 / 2 + (t / tau)**3 / 6)
+
+# Taylor expansion with 7 terms
+# u ≈ u_0 * [ (t/tau) - (t/tau)^2/2! + (t/tau)^3/3! - ... + (t/tau)^7/7! ]
+def charging_capacitor_taylor_7(t, u_0, tau):
+    x = t / tau
+    return u_0 * (
+        x
+        - x**2 / 2
+        + x**3 / 6
+        - x**4 / 24
+        + x**5 / 120
+        - x**6 / 720
+        + x**7 / 5040
+    )
+
 # min_max_scale_jax / lineare bijectiv transformation
 def min_max_scale_jax(x, x_min=None, x_max=None, feature_min=0.0, feature_max=1.0):
     """
@@ -43,4 +79,6 @@ def impedance_pcb_trace(eps_r, h, t, w):
     prefactor = 87 / (jnp.sqrt(eps_r + 1.41))
     Z = prefactor * jnp.log((5.98 * h) / (0.8 * w + t)) # Impedance
     return Z
+
+
 

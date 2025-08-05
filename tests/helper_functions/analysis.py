@@ -1,8 +1,42 @@
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~ helper_functions analysis.py~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~MF~~~~~#
+
+# Filename: helper_functions/analysis.py
+# Author: Markus Flicker
+# Date: 2023-08-05
+# Description: 
+#        This module provides helper functions for analyzing posterior samples and model results, particularly in the context of Bayesian inference and parameter estimation. The functions support loading and processing samples from .npz files, comparing true and posterior means, storing model values and covariance matrices, filtering posterior configurations within a specified delta of a reference value, and plotting posterior distributions from both raw samples and summary statistics.
+#        Functions:
+#        ----------
+#        - mean_comparison(sample_fname, mean_true_parameters):
+#        Compares true means with posterior means for multiple parameters and saves the results to a text file.
+#        - store_model_values_results(true_value, found_value, output_dir, fname):
+#        Stores the true value, found value, and (optionally) the covariance matrix of posterior samples in a CSV file.
+#        - store_posterior_covariance(self, sample_fname, output_dir, fname):
+#        Stores the covariance matrix of posterior samples in a CSV file.
+#        - store_configurations_within_delta(true_model_function, ref_value, sample_fname, true_model_func_params=None, delta=0.01, inverse_fn=None, params=None, fname_suffix=""):
+#        Identifies and stores posterior sample configurations whose model values are within a specified delta of a reference value.
+#        - load_samples_from_npz(file_path):
+#        Loads samples from a .npz file and returns them as a JAX array along with parameter names.
+#        - construct_output_path(input_file, prefix):
+#        Constructs an output file path with a consistent index based on the input file name.
+#        - plot_posterior_from_samples(file_path):
+#        Plots normalized histograms of posterior samples for each parameter and saves the plots as PNG files.
+#        - plot_posterior_from_summary_csv(summary_file):
+#        Plots normalized probability density functions (PDFs) for each parameter using summary statistics from a CSV file and saves the plots as PNG files.
+#
+
+
 import os
 import pandas as pd
 import jax
 import jax.numpy as jnp
- 
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+import re
+
 def mean_comparison(sample_fname, mean_true_parameters):
     """
     Compare true means vs posterior means for multiple parameters and save results to a txt file.
@@ -70,8 +104,18 @@ def store_model_values_results(true_value, found_value, output_dir, fname):
     
 def store_posterior_covariance(self, sample_fname, output_dir, fname):
     """
-    Store covariance matrix of posterior samples in CSV.
+    Computes and stores the posterior covariance matrix from parameter samples.
+    This method loads posterior samples from a specified .npz file, computes the covariance matrix of the parameters,
+    and saves the resulting matrix as a CSV file in a designated output directory.
+    Args:
+        sample_fname (str): Path to the .npz file containing posterior samples and parameter names.
+        output_dir (str): Directory where the covariance matrix CSV will be saved.
+        fname (str): Filename for the saved covariance matrix CSV.
+    Notes:
+        - The .npz file is expected to contain both the parameter samples and their corresponding names.
+        - The output CSV will be saved under 'model_analysis/posterior_covariance' within the specified output directory.
     """
+    
     # 1. Covariance matrix from posterior samples
             # Extract posterior samples
             
@@ -97,9 +141,20 @@ def store_posterior_covariance(self, sample_fname, output_dir, fname):
     
 def store_configurations_within_delta(true_model_function, ref_value, sample_fname, true_model_func_params=None, delta=0.01, inverse_fn=None, params=None, fname_suffix=""):
     """
-    Check all posterior samples and store those configurations whose impedance is within ±delta of ref_value.
-    Allows passing a dynamic inverse scaling function with *params for flexibility.
+    Filters and stores model parameter configurations whose computed model values fall within a specified delta range of a reference value.
+    Parameters:
+        true_model_function (callable): The function representing the true model, used to compute model values from parameters.
+        ref_value (float): The reference value to compare computed model values against.
+        sample_fname (str): Path to the .npz file containing posterior samples and parameter names.
+        true_model_func_params (iterable, optional): Additional parameters to be passed to the true model function for each evaluation. Defaults to None.
+        delta (float, optional): The relative tolerance (as a fraction) for selecting configurations within ±delta of the reference value. Defaults to 0.01 (i.e., ±1%).
+        inverse_fn (callable, optional): Function to inverse-transform sampled parameters, if required. Defaults to None.
+        params (iterable, optional): Parameters to be passed to the inverse function for each parameter. Defaults to None.
+        fname_suffix (str, optional): Suffix to append to the output filename. Defaults to "".
+    Returns:
+        None. The function saves a CSV file containing the filtered configurations and prints summary information.
     """
+  
 
     # Load samples from the provided .npz file
     samples, param_names = load_samples_from_npz(sample_fname)
@@ -157,5 +212,121 @@ def load_samples_from_npz(file_path):
     """
     samples = jnp.load(file_path)
     return jnp.column_stack([samples[p].flatten() for p in samples.files]), list(samples.files)
+
+# Helper to construct output file path with same index
+def construct_output_path(input_file, prefix):
+    """
+    Constructs an output file path based on the input file path and a given prefix.
+    The function extracts the directory and base name from the input file path. It then searches
+    for an underscore followed by digits before the file extension in the base name to determine
+    an index. If such a pattern is not found, it defaults the index to "1". The output path is
+    constructed by joining the directory with a new file name composed of the prefix, the index,
+    and a ".png" extension.
+    Args:
+        input_file (str): The path to the input file.
+        prefix (str): The prefix to use for the output file name.
+    Returns:
+        str: The constructed output file path with the ".png" extension.
+    """
+    
+    
+    
+    directory = os.path.dirname(input_file)
+    base_name = os.path.basename(input_file)
+    match = re.search(r'_(\d+)\.[A-Za-z]+$', base_name)
+    index = match.group(1) if match else "1"
+    return os.path.join(directory, f"{prefix}_{index}.png")
+
+# Plot posterior samples dynamically with normalized histogram
+def plot_posterior_from_samples(file_path):
+    """
+    Plots posterior distributions for parameters from MCMC or sampling results stored in a .npz file.
+    Args:
+        file_path (str): Path to the .npz file containing sample arrays and parameter names.
+    The function:
+        - Loads samples and parameter names from the specified .npz file.
+        - Plots a histogram for each parameter's posterior distribution.
+        - Sets axis labels, titles, and limits for clarity.
+        - Saves the resulting figure to an output path constructed from the input file path.
+    """
+    
+    
+    
+    sample_array, param_names = load_samples_from_npz(file_path)
+    num_params = len(param_names)
+    fig, axes = plt.subplots(1, num_params, figsize=(4 * num_params, 4))
+
+    if num_params == 1:
+        axes = [axes]
+
+    for i, (ax, name) in enumerate(zip(axes, param_names)):
+        counts, bins, patches = ax.hist(sample_array[:, i], bins=30, density=True, alpha=0.7, color="skyblue", edgecolor="black")
+        ax.set_title(f"Posterior: {name}")
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Value")
+        ax.set_ylabel("Density (Normalized)")
+        ax.set_ylim(0, max(counts) * 1.1)
+
+    plt.tight_layout()
+    out_path = construct_output_path(file_path, "posterior_distributions_samples")
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+# Plot posterior from summary CSV file with normalized PDF
+def plot_posterior_from_summary_csv(summary_file):
+    """
+    Plots posterior distributions as normal approximations for parameters summarized in a CSV file.
+    The function reads a summary CSV file containing parameter names, means, and standard deviations,
+    then plots the normal distribution for each parameter using the provided statistics. Each plot is
+    normalized and displayed side-by-side in a single figure. The resulting figure is saved to disk.
+    Args:
+        summary_file (str or Path): Path to the CSV file containing parameter summaries. The file must
+            have the parameter names in the first column, and columns named "mean" and "sd" for the
+            mean and standard deviation of each parameter.
+    Saves:
+        A PNG image of the posterior distributions, with the output path constructed based on the input
+        file and the suffix "posterior_distributions".
+    """
+    
+    
+    
+    df = pd.read_csv(summary_file)
+    param_names = df.iloc[:, 0].tolist()
+    means = df["mean"].values
+    stds = df["sd"].values
+
+    num_params = len(param_names)
+    fig, axes = plt.subplots(1, num_params, figsize=(4 * num_params, 4))
+
+    if num_params == 1:
+        axes = [axes]
+
+    x = jnp.linspace(0, 1, 500)
+    for ax, name, mu, sigma in zip(axes, param_names, means, stds):
+        y = norm.pdf(x, mu, sigma)
+        y /= jnp.trapz(y, x)  # Ensure normalization
+        ax.plot(x, y, color="blue")
+        ax.fill_between(x, y, color="skyblue", alpha=0.4)
+        ax.set_title(f"Normal Approx: {name}")
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Value")
+        ax.set_ylabel("Density (Normalized)")
+        ax.set_ylim(0, max(y) * 1.1)
+
+    plt.tight_layout()
+    out_path = construct_output_path(summary_file, "posterior_distributions")
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+
+
+# Plot Distributions of Posterior Samples
+plot_posterior_from_samples("tests/output_capacitor_incomplete/mcmc_samples__1.npz")
+plot_posterior_from_summary_csv("tests/output_capacitor_incomplete/mcmc_summary__1.csv")
+plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__1.npz")
+plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__1.csv")
+plot_posterior_from_samples("tests/output_pcb_trace_impedance/mcmc_samples__1.npz")
+plot_posterior_from_summary_csv("tests/output_pcb_trace_impedance/mcmc_summary__1.csv")
+
 
 

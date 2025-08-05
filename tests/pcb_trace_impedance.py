@@ -4,15 +4,9 @@
 import os
 import arviz as az
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
-import pandas as pd
-import xarray as xr
-import pymc as pm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-from itertools import product
 import yaml
 from bacali.sampler import BayesCalibrator
 
@@ -202,7 +196,7 @@ Bacali = BayesCalibrator(
 Bacali.adjust_prior(use_uniform_prior=True) # Uniform prior for all parameters
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=1000, num_chains=1)
+Bacali.sample_from_chain(num_samples=5000, num_chains=2)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -250,16 +244,43 @@ found_h     = inverse_min_max_scale_jax(posterior_means["h_scaled"], h_min, h_ma
 found_t     = inverse_min_max_scale_jax(posterior_means["t_scaled"], t_min, t_max)
 found_w     = inverse_min_max_scale_jax(posterior_means["w_scaled"], w_min, w_max)
 
+found_parameters = jnp.stack([found_eps_r, found_h, found_t, found_w])
+
 # Calculate impedance for found parameters
 found_impedance = impedance_pcb_trace(found_eps_r, found_h, found_t, found_w)
 true_y_obs = impedance_pcb_trace(true_eps_r, true_h, true_t, true_w)
 
-# Compare to true impedance
-print("\n--- Impedance Comparison ---")
-print(f"True Impedance:      {float(true_y_obs):.4f}")
-print(f"Found Impedance:     {float(found_impedance):.4f}")
-print(f"Absolute Error:      {abs(float(true_y_obs) - float(found_impedance)):.4f}")
-print(f"Relativ Error:      {abs(float(true_y_obs) - float(found_impedance))/float(true_y_obs):.4f}")
+# Values for plotting
+true_val = float(true_y_obs)
+found_val = float(found_impedance)
+abs_error = abs(true_val - found_val)
+rel_error = abs_error / true_val
+
+# Create bar plot
+labels = ["True Impedance", "Found Impedance"]
+values = [true_val, found_val]
+
+plt.figure(figsize=(6, 5))
+plt.bar(labels, values, color=["green", "blue"], alpha=0.7)
+plt.ylabel("Impedance")
+plt.title("Impedance Comparison")
+
+# Annotate bars with values
+for i, v in enumerate(values):
+    plt.text(i, v + 0.01 * max(values), f"{v:.4f}", ha='center', fontsize=10)
+
+# Add text for error values and found parameters
+param_text = "\n".join([f"{name}: {val:.4f}" for name, val in zip(para_strings, found_parameters)])
+plt.figtext(0.5, -0.2,
+            f"Absolute Error: {abs_error:.4f} | Relative Error: {rel_error:.4f}\nFound Parameters:\n{param_text}",
+            wrap=True, horizontalalignment='center', fontsize=10)
+
+# Save plot
+plt.tight_layout()
+plt.savefig("tests/output_pcb_trace_impedance/impedance_comparison.png", dpi=150, bbox_inches="tight")
+plt.close()
+
+
 
 
 

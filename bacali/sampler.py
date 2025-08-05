@@ -1,4 +1,39 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~ BaCali - BayesCalibrator~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~MF~~~~~#
+
+# Filename: bacali/sampler.py
+# Author: Markus Flicker
+# Date: 2023-08-05
+# Description:
+#   This script contains the BayesCalibrator class, which performs Bayesian model calibration
+#   using Hamiltonian Markov Chain Monte Carlo (HMC) with NumPyro.
+#   It allows for flexible model definitions (model_function, prior distributions, etc.)
+
+
+def set_jax_platform():
+    try:
+        import importlib
+        # Nur das jaxlib.xla_extension Modul laden, nicht JAX selbst
+        xla = importlib.import_module("jaxlib.xla_extension")
+        # Prüfen, ob eine GPU sichtbar ist
+        gpu_devices = [d for d in xla.get_local_devices() if d.device_kind == "Gpu"]
+        if gpu_devices:
+            os.environ["JAX_PLATFORM_NAME"] = "gpu"
+            print("GPU gefunden und als Standard-Device gesetzt.")
+        else:
+            print("Keine GPU gefunden. Nutze CPU.")
+    except Exception as e:
+        print("Konnte jaxlib.xla_extension nicht importieren:", e)
+        print("Nutze CPU.")
+
+set_jax_platform()
+
+import jax
+# set double precision for JAX
+jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
+
 import os
 import arviz
 import numpy as np
@@ -7,7 +42,11 @@ import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS
 from numpyro.diagnostics import summary
-import jax
+
+
+print(jax.__version__)   # sollte zu jaxlib passen
+import jaxlib
+print(jaxlib.__version__)
 import arviz as az
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -31,6 +70,14 @@ class BayesCalibrator:
         observed_data : jax.numpy.ndarray
             Observed values to calibrate against.
             Shape (N,) for scalar outputs, or (N, D) for D-dimensional outputs.
+            
+        model_function_parameters : dict, optional
+        
+        output_dir : str
+            Directory to save MCMC results and figures.
+        
+        dense_mass : bool
+            If True, uses dense mass matrix for NUTS sampling.
 
     Methods:
     
@@ -43,20 +90,17 @@ class BayesCalibrator:
         model_function: Callable[..., tuple],
         model_parameters_string: List[str],
         observed_data: jnp.ndarray,
-        model_function_parameters: Optional[Dict] = None
-        ):
-        """
-        Args:
-            model_function (Callable): Function that returns (mean, cov)
-            model_parameters_string (list of str): Names of sampled parameters
-            observed_data (jax.numpy.ndarray): Target data
-            model_function_parameters (dict, optional): Additional fixed parameters passed to the model_function
-        """
+        model_function_parameters: Optional[Dict] = None,
+        output_dir: str = "mcmc_output",
+        dense_mass: bool = False):
+
+        # Initialize attributes
         self.model_function = model_function
         self.model_parameters_string = model_parameters_string
         self.observed_data = jnp.asarray(observed_data)
         self.model_function_parameters = model_function_parameters or {}
-        self.output_dir = "mcmc_output"
+        self.output_dir = output_dir
+        self.dense_mass = dense_mass
         
         # Set default prior: Normal(0.5, 0.2) with truncation [0, 1]
         self.normal_prior = True
@@ -66,12 +110,34 @@ class BayesCalibrator:
         param_count = len(self.model_parameters_string)
         self.prior_mean = jnp.full((param_count,), 0.5)
         self.prior_std = jnp.full((param_count,), 0.2)
-        self.white_noise_std = 0.2
+        self.white_noise_std = 0.02
         
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
+        print(f"Output directory set to: {self.output_dir}")
+        
+    def set_output_dir(self, output_dir: str):
+        """
+        Set a custom output directory for MCMC results.
+        
+        Args:
+            output_dir (str): Path to the output directory.
+        """
+        self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
         
     def adjust_prior(self, prior_mean=None, prior_std=None, prior_range=None, white_noise_std=None, use_uniform_prior=False):
+        """
+        Adjust the prior settings for the model parameters.
+        
+        Args:
+            prior_mean (float or list): Mean of the prior distribution.
+            prior_std (float or list): Standard deviation of the prior distribution.
+            prior_range (tuple): Range for the prior distribution (low, high).
+            white_noise_std (float): Standard deviation of the white noise.
+            use_uniform_prior (bool): If True, uses a uniform prior instead of normal.
+        """
+        
         # Adjust prior mean
         if prior_mean is not None:
             if jnp.isscalar(prior_mean):
@@ -141,7 +207,18 @@ class BayesCalibrator:
         numpyro.sample("likelihood", dist.Normal(mu_func, sigma), obs=self.observed_data)
         
     def sample_from_chain(self, num_samples, num_warmup=None, num_chains=None, rng_seed: int = 0):
-        kernel = NUTS(self.baysian_model)
+        """
+        Sample from the posterior distribution using MCMC with NUTS.
+        
+        Args:
+            num_samples (int): Number of samples to draw from the posterior.
+            num_warmup (int, optional): Number of warmup iterations. Defaults to num_samples // 5.
+            num_chains (int, optional): Number of chains to run. Defaults to 1.
+            rng_seed (int): Random seed for reproducibility.
+        """
+        
+        # Build the model
+        kernel = NUTS(self.baysian_model, dense_mass=self.dense_mass)
         mcmc = MCMC(
             kernel,
             num_samples=num_samples or 50000,
@@ -149,16 +226,18 @@ class BayesCalibrator:
             num_chains=num_chains or 1,
         )
 
+        # Run MCMC
         rng_key = jax.random.PRNGKey(rng_seed)
         mcmc.run(rng_key)
         self.last_mcmc = mcmc  
         mcmc.print_summary()
         
-        # Get samples
+        # Get samples | Grouped and flat 
         samples_grouped = mcmc.get_samples(group_by_chain=True)
         self.last_samples_grouped = samples_grouped
         samples_flat = mcmc.get_samples(group_by_chain=False)
         self.last_samples_flat = samples_flat
+        
         # Save samples as .npz
         npz_fname = self.get_unique_filename(self.output_dir, "mcmc_samples", para_string="", ext=".npz")
         np.savez(npz_fname, **{k: np.array(v) for k, v in samples_grouped.items()})
@@ -181,6 +260,13 @@ class BayesCalibrator:
             self.plot_chain_stats(idata, para_string)
         
     def plot_chain_stats(self, idata, para_string):
+        """
+        Plot and save chain statistics for a given parameter.
+        
+        Args:
+            idata: InferenceData object containing MCMC results.
+            para_string (str): Name of the parameter to plot.
+        """
         try:
             # Define output directory
             figures_dir = os.path.join(self.output_dir, "figures")
@@ -214,11 +300,27 @@ class BayesCalibrator:
             print(f"Caught an error on {para_string}: {e}")
             
     def get_unique_filename(self, base_path, prefix, para_string, ext=".png", fixed_index=None):
+        """
+        Generate a unique filename in the specified directory.
+        If a fixed index is provided, it will be used directly.
+        Otherwise, it will increment the index until a unique filename is found.
+        
+        Args:
+            base_path (str): Base directory to save the file.
+            prefix (str): Prefix for the filename.
+            para_string (str): Parameter string to include in the filename.
+            ext (str): File extension.
+            fixed_index (int, optional): If provided, use this index directly.
+        Returns:
+            str: Full path to the unique filename.
+        """
+        # Check if fixed_index is provided
         if fixed_index is not None:
             # If a fixed index is provided, use it directly
             filename = f"{prefix}_{para_string}_{fixed_index}{ext}"
             return os.path.join(base_path, filename)
         i = 1
+        # Increment index until a unique filename is found
         while True:
             filename = f"{prefix}_{para_string}_{i}{ext}"
             full_path = os.path.join(base_path, filename)
@@ -227,128 +329,4 @@ class BayesCalibrator:
                 return full_path
             i += 1
             
-    # Analysis of the means (true and posterior)
-    def mean_comparison(self, mean_true_parameters, posterior_sampled_means, param_names):
-        """
-        Compare true means vs posterior means for multiple parameters and save results to a txt file.
-        
-        Args:
-            mean_true_parameters (array-like): Array of true mean values.
-            posterior_sampled_means (array-like): Array of posterior mean values.
-            param_names (list): Names of the parameters (same length as means).
-            outdir (str): Output directory.
-        """
-        # Prepare result string
-        result_lines = ["\n--- Mean Comparison - Scaled Range ---\n"]
-        for name, true_mean, post_mean in zip(param_names, mean_true_parameters, posterior_sampled_means):
-            abs_diff = abs(true_mean - post_mean)
-            result_lines.append(
-                f"True mean of {name} (observations):      {true_mean:.4f}\n"
-                f"Posterior mean of {name} (samples):     {post_mean:.4f}\n"
-                f"Absolute difference ({name}):           {abs_diff:.4f}\n"
-                "------------------------------------------------------------\n"
-            )
-
-        result = "".join(result_lines)
-
-        # Print to console
-        #print(result)
-
-        # Save to file
-        fname = self.get_unique_filename(self.output_dir, "mean_comparison", para_string="", ext=".txt", fixed_index=self.last_sample_index)
-        with open(fname, "w") as f:
-            f.write(result)
-            
-    # Experiment 1 - Store true and found model values
-    def store_model_values_results(self, true_value, found_value, fname_suffix=""):
-        """
-        Store true value, found value, and covariance matrix of posterior samples in CSV.
-        """
-        # 1. Save True and Found impedance + covariance matrix
-        data = {
-            "True_Value": [true_value],
-            "Found_Value": [found_value]
-        }
-        df_main = pd.DataFrame(data)
-        
-
-        # Create output folder
-        analysis_model_values_dir = os.path.join(self.output_dir, "model_analysis/experiment_1/model_values")
-        os.makedirs(analysis_model_values_dir, exist_ok=True)
-        
-        # Store impedance values
-        fname = self.get_unique_filename(analysis_model_values_dir, "model_values", para_string=fname_suffix, ext=".csv", fixed_index=self.last_sample_index)
-        df_main.to_csv(fname, index=False)
-        print(f"Stored model values to: {fname}")
-    
-        
-    def store_posterior_covariance(self, fname_suffix=""):
-        """
-        Store covariance matrix of posterior samples in CSV.
-        """
-        # 1. Covariance matrix from posterior samples
-        param_names = self.model_parameters_string  # e.g. ["eps_scaled", "h_scaled", ...]
-        samples = self.last_samples_flat  # Use the last flat samples
-        param_matrix = jnp.column_stack([samples[p] for p in param_names])
-        cov_matrix = jnp.cov(param_matrix, rowvar=False)
-        
-        # 2. Save covariance matrix as DataFrame
-        cov_df = pd.DataFrame(cov_matrix, index=param_names, columns=param_names)
-        
-        # Create output folder
-        analysis_posterior_covariance_dir = os.path.join(self.output_dir, "model_analysis/experiment_1/posterior_covariance")
-        os.makedirs(analysis_posterior_covariance_dir, exist_ok=True)
-        
-        # Store covariance matrix separately
-        fname = self.get_unique_filename(analysis_posterior_covariance_dir, "posterior_covariance", para_string="", ext=".csv", fixed_index=self.last_sample_index)
-        cov_df.to_csv(fname, index=False)
-        print(f"Stored model values and covariance matrix in '{analysis_posterior_covariance_dir}'")
-
-        
-        
-        
-    def store_configurations_within_delta(self, true_model_function, ref_value, delta=0.01, inverse_fn=None, params=None, fname_suffix=""):
-        """
-        Check all posterior samples and store those configurations whose impedance is within ±delta of ref_value.
-        Allows passing a dynamic inverse scaling function with *params for flexibility.
-        """
-        # Extract posterior samples
-        samples = self.last_samples_flat  # Use the last flat samples
-        param_names = self.model_parameters_string
-
-        # Dynamically inverse transform parameters if inverse_fn is provided
-        if inverse_fn is not None and params is not None:
-            real_params = [inverse_fn(samples[p], *pp) for p, pp in zip(param_names, params)]
-        else:
-            # If no inverse_fn is provided, keep parameters as they are
-            real_params = [samples[p] for p in param_names]
-
-        # Compute impedance for all posterior samples (unpack real parameters)
-        model_values = true_model_function(*real_params)
-
-        # Filter configurations within delta interval
-        lower = ref_value * (1 - delta)
-        upper = ref_value * (1 + delta)
-        mask = (model_values >= lower) & (model_values <= upper)
-
-        # Collect matching configurations dynamically
-        config_dict = {p: jnp.array(r)[mask] for p, r in zip(param_names, real_params)}
-        config_dict["model_values"] = jnp.array(model_values)[mask]
-        config_dict["rel_error"] = jnp.abs((config_dict["model_values"] - ref_value) / ref_value)
-
-        matching_configs = pd.DataFrame(config_dict)
-
-        # Create output directory
-        analysis_dir = os.path.join(self.output_dir, "model_analysis/experiment_1/posterior_configs")
-        os.makedirs(analysis_dir, exist_ok=True)
-
-        # Store results in CSV
-        fname = self.get_unique_filename(
-            analysis_dir, "posterior_configs_within_delta", para_string=fname_suffix, ext=".csv", fixed_index=self.last_sample_index
-        )
-        matching_configs.to_csv(fname, index=False)
-
-        print(f"Found {len(matching_configs)} configurations within ±{delta*100:.1f}% of reference impedance.")
-        print(f"Saved results to: {analysis_dir}")
-
-
+   

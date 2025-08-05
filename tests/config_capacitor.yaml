@@ -1,0 +1,9 @@
+charging_capacitor:
+  u_0: 3
+  tau: 0.5
+  t_a: [0.2, 0.5, 0.7]
+charging_capacitor_ranges:
+  u_0: [0.01, 10.0]
+  tau: [0.01, 1.0]
+  u_t: [0.0001, 10.0]
+
