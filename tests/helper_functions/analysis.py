@@ -321,12 +321,12 @@ def plot_posterior_from_summary_csv(summary_file):
 
 
 # Plot Distributions of Posterior Samples
-plot_posterior_from_samples("tests/output_capacitor_incomplete/mcmc_samples__1.npz")
-plot_posterior_from_summary_csv("tests/output_capacitor_incomplete/mcmc_summary__1.csv")
-plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__1.npz")
-plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__1.csv")
-plot_posterior_from_samples("tests/output_pcb_trace_impedance/mcmc_samples__1.npz")
-plot_posterior_from_summary_csv("tests/output_pcb_trace_impedance/mcmc_summary__1.csv")
+#plot_posterior_from_samples("tests/output_capacitor_incomplete/mcmc_samples__1.npz")
+#plot_posterior_from_summary_csv("tests/output_capacitor_incomplete/mcmc_summary__1.csv")
+#plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__1.npz")
+#plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__1.csv")
+#plot_posterior_from_samples("tests/output_pcb_trace_impedance/mcmc_samples__1.npz")
+#plot_posterior_from_summary_csv("tests/output_pcb_trace_impedance/mcmc_summary__1.csv")
 
 
 
