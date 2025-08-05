@@ -37,6 +37,89 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 import re
 
+
+# Plot posterior samples dynamically with normalized histogram
+def plot_posterior_from_samples(file_path):
+    """
+    Plots posterior distributions for parameters from MCMC or sampling results stored in a .npz file.
+    Args:
+        file_path (str): Path to the .npz file containing sample arrays and parameter names.
+    The function:
+        - Loads samples and parameter names from the specified .npz file.
+        - Plots a histogram for each parameter's posterior distribution.
+        - Sets axis labels, titles, and limits for clarity.
+        - Saves the resulting figure to an output path constructed from the input file path.
+    """
+    
+    
+    
+    sample_array, param_names = load_samples_from_npz(file_path)
+    num_params = len(param_names)
+    fig, axes = plt.subplots(1, num_params, figsize=(4 * num_params, 4))
+
+    if num_params == 1:
+        axes = [axes]
+
+    for i, (ax, name) in enumerate(zip(axes, param_names)):
+        counts, bins, patches = ax.hist(sample_array[:, i], bins=30, density=True, alpha=0.7, color="skyblue", edgecolor="black")
+        ax.set_title(f"Posterior: {name}")
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Value")
+        ax.set_ylabel("Density (Normalized)")
+        ax.set_ylim(0, max(counts) * 1.1)
+
+    plt.tight_layout()
+    out_path = construct_output_path(file_path, "posterior_distributions_samples")
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+# Plot posterior from summary CSV file with normalized PDF
+def plot_posterior_from_summary_csv(summary_file):
+    """
+    Plots posterior distributions as normal approximations for parameters summarized in a CSV file.
+    The function reads a summary CSV file containing parameter names, means, and standard deviations,
+    then plots the normal distribution for each parameter using the provided statistics. Each plot is
+    normalized and displayed side-by-side in a single figure. The resulting figure is saved to disk.
+    Args:
+        summary_file (str or Path): Path to the CSV file containing parameter summaries. The file must
+            have the parameter names in the first column, and columns named "mean" and "sd" for the
+            mean and standard deviation of each parameter.
+    Saves:
+        A PNG image of the posterior distributions, with the output path constructed based on the input
+        file and the suffix "posterior_distributions".
+    """
+    
+    
+    
+    df = pd.read_csv(summary_file)
+    param_names = df.iloc[:, 0].tolist()
+    means = df["mean"].values
+    stds = df["sd"].values
+
+    num_params = len(param_names)
+    fig, axes = plt.subplots(1, num_params, figsize=(4 * num_params, 4))
+
+    if num_params == 1:
+        axes = [axes]
+
+    x = jnp.linspace(0, 1, 500)
+    for ax, name, mu, sigma in zip(axes, param_names, means, stds):
+        y = norm.pdf(x, mu, sigma)
+        y /= jnp.trapz(y, x)  # Ensure normalization
+        ax.plot(x, y, color="blue")
+        ax.fill_between(x, y, color="skyblue", alpha=0.4)
+        ax.set_title(f"Normal Approx: {name}")
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Value")
+        ax.set_ylabel("Density (Normalized)")
+        ax.set_ylim(0, max(y) * 1.1)
+
+    plt.tight_layout()
+    out_path = construct_output_path(summary_file, "posterior_distributions")
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+    
+
 def mean_comparison(sample_fname, mean_true_parameters):
     """
     Compare true means vs posterior means for multiple parameters and save results to a txt file.
@@ -237,86 +320,7 @@ def construct_output_path(input_file, prefix):
     index = match.group(1) if match else "1"
     return os.path.join(directory, f"{prefix}_{index}.png")
 
-# Plot posterior samples dynamically with normalized histogram
-def plot_posterior_from_samples(file_path):
-    """
-    Plots posterior distributions for parameters from MCMC or sampling results stored in a .npz file.
-    Args:
-        file_path (str): Path to the .npz file containing sample arrays and parameter names.
-    The function:
-        - Loads samples and parameter names from the specified .npz file.
-        - Plots a histogram for each parameter's posterior distribution.
-        - Sets axis labels, titles, and limits for clarity.
-        - Saves the resulting figure to an output path constructed from the input file path.
-    """
-    
-    
-    
-    sample_array, param_names = load_samples_from_npz(file_path)
-    num_params = len(param_names)
-    fig, axes = plt.subplots(1, num_params, figsize=(4 * num_params, 4))
 
-    if num_params == 1:
-        axes = [axes]
-
-    for i, (ax, name) in enumerate(zip(axes, param_names)):
-        counts, bins, patches = ax.hist(sample_array[:, i], bins=30, density=True, alpha=0.7, color="skyblue", edgecolor="black")
-        ax.set_title(f"Posterior: {name}")
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Value")
-        ax.set_ylabel("Density (Normalized)")
-        ax.set_ylim(0, max(counts) * 1.1)
-
-    plt.tight_layout()
-    out_path = construct_output_path(file_path, "posterior_distributions_samples")
-    plt.savefig(out_path, dpi=150)
-    plt.close()
-
-# Plot posterior from summary CSV file with normalized PDF
-def plot_posterior_from_summary_csv(summary_file):
-    """
-    Plots posterior distributions as normal approximations for parameters summarized in a CSV file.
-    The function reads a summary CSV file containing parameter names, means, and standard deviations,
-    then plots the normal distribution for each parameter using the provided statistics. Each plot is
-    normalized and displayed side-by-side in a single figure. The resulting figure is saved to disk.
-    Args:
-        summary_file (str or Path): Path to the CSV file containing parameter summaries. The file must
-            have the parameter names in the first column, and columns named "mean" and "sd" for the
-            mean and standard deviation of each parameter.
-    Saves:
-        A PNG image of the posterior distributions, with the output path constructed based on the input
-        file and the suffix "posterior_distributions".
-    """
-    
-    
-    
-    df = pd.read_csv(summary_file)
-    param_names = df.iloc[:, 0].tolist()
-    means = df["mean"].values
-    stds = df["sd"].values
-
-    num_params = len(param_names)
-    fig, axes = plt.subplots(1, num_params, figsize=(4 * num_params, 4))
-
-    if num_params == 1:
-        axes = [axes]
-
-    x = jnp.linspace(0, 1, 500)
-    for ax, name, mu, sigma in zip(axes, param_names, means, stds):
-        y = norm.pdf(x, mu, sigma)
-        y /= jnp.trapz(y, x)  # Ensure normalization
-        ax.plot(x, y, color="blue")
-        ax.fill_between(x, y, color="skyblue", alpha=0.4)
-        ax.set_title(f"Normal Approx: {name}")
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Value")
-        ax.set_ylabel("Density (Normalized)")
-        ax.set_ylim(0, max(y) * 1.1)
-
-    plt.tight_layout()
-    out_path = construct_output_path(summary_file, "posterior_distributions")
-    plt.savefig(out_path, dpi=150)
-    plt.close()
 
 
 
