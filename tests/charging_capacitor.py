@@ -1,3 +1,17 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~ Tests - Charging Capacitor Complete~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~MF~~~~~#
+
+# Filename: tests/charging_capacitor_complete.py
+# Author: Markus Flicker
+# Date: 2023-08-05
+# Description:
+#           This script tests the functionality of the BayesCalibrator class
+#           for calibrating parameters of a charging capacitor model using Gaussian Process regression.
+#           It generates synthetic observed data, trains a Gaussian Process emulator,
+#           performs Bayesian inference using MCMC sampling, and compares the true and found parameters.
+#     
+
 #-----------------------------------------------------------------------------------------------------
 ######################--Imports--######################
 import os

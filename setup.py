@@ -13,10 +13,7 @@ setup(
     install_requires=[
         "arviz",
         "matplotlib",
-        "numpy",
         "pandas",
-        "xarray",
-        "pymc",
         "scikit-learn",
         "jax",
         "jaxlib",

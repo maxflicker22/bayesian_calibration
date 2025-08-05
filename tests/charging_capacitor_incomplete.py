@@ -1,3 +1,19 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~ Tests - Charging Capacitor Incomplete~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~MF~~~~~#
+
+# Filename: tests/charging_capacitor_incomplete.py
+# Author: Markus Flicker
+# Date: 2023-08-05
+# Description:
+#           This script tests the functionality of the BayesCalibrator class
+#           for calibrating parameters of a charging capacitor model using Gaussian Process regression.
+#           In This Example the capacitor model which is provided is not complete. The Measurements
+#           were generated from the exact solution but the gaussian process model is just trained on a 
+#           Taylor expansion of the capacitor model. This should show that the posterior distribution
+#           is not as sharp as in the complete case.
+
+
 #-----------------------------------------------------------------------------------------------------
 ######################--Imports--######################
 import os
@@ -214,10 +230,6 @@ print()
 # Load Mcmc summarize Results
 mcmc_summary = Bacali.last_mcmc_summary
 print(mcmc_summary["mean"][:-1])
-
-# Helper functions (assumed to be defined elsewhere)
-# inverse_min_max_scale_jax, impedance_pcb_trace, true_y_obs,
-# eps_r_min, eps_r_max, h_min, h_max, t_min, t_max, w_min, w_max
 
 # Get posterior mean for each scaled parameter
 posterior_means = mcmc_summary["mean"]

@@ -1,3 +1,20 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~ Tests - PCB-Trace-Impedance ~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~MF~~~~~#
+
+# Filename: tests/pcb_trace_impedance.py
+# Author: Markus Flicker
+# Date: 2023-08-05
+# Description:
+#           This script tests the functionality of the BayesCalibrator class
+#           for calibrating parameters of the impedance of an pcb trace using Gaussian Process regression.
+#           It generates synthetic observed data, trains a Gaussian Process emulator,
+#           performs Bayesian inference using MCMC sampling, and compares the true and found parameters.
+#
+# !Note!:
+#           In this example, no unique solution is found. Cause we pointing from 4 parameters to 1 output the
+#           system is underdetermined. The posterior distribution of the parameters is not as sharp as in the complete case.
+
 
 #-----------------------------------------------------------------------------------------------------
 ######################--Imports--######################
