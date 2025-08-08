@@ -38,6 +38,10 @@ from scipy.stats import norm
 import re
 
 
+def jnp_trapz(y, x):
+    dx = x[1:] - x[:-1]
+    return jnp.sum(0.5 * (y[1:] + y[:-1]) * dx)
+
 # Plot posterior samples dynamically with normalized histogram
 def plot_posterior_from_samples(file_path):
     """
@@ -105,7 +109,7 @@ def plot_posterior_from_summary_csv(summary_file):
     x = jnp.linspace(0, 1, 500)
     for ax, name, mu, sigma in zip(axes, param_names, means, stds):
         y = norm.pdf(x, mu, sigma)
-        y /= jnp.trapz(y, x)  # Ensure normalization
+        y /= jnp_trapz(y, x)  # Ensure normalization
         ax.plot(x, y, color="blue")
         ax.fill_between(x, y, color="skyblue", alpha=0.4)
         ax.set_title(f"Normal Approx: {name}")
@@ -325,10 +329,16 @@ def construct_output_path(input_file, prefix):
 
 
 # Plot Distributions of Posterior Samples
-#plot_posterior_from_samples("tests/output_capacitor_incomplete/mcmc_samples__1.npz")
-#plot_posterior_from_summary_csv("tests/output_capacitor_incomplete/mcmc_summary__1.csv")
-#plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__1.npz")
-#plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__1.csv")
+#plot_posterior_from_samples("tests/output_capacitor_incomplete/mcmc_samples__9.npz")
+#plot_posterior_from_summary_csv("tests/output_capacitor_incomplete/mcmc_summary__9.csv")
+#plot_posterior_from_samples("tests/output_capacitor_incomplete/mcmc_samples__7.npz")
+#plot_posterior_from_summary_csv("tests/output_capacitor_incomplete/mcmc_summary__7.csv")
+plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__12.npz")
+plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__12.csv")
+#plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__8.npz")
+#plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__8.csv")
+#plot_posterior_from_samples("tests/output_capacitor_complete/mcmc_samples__9.npz")
+#plot_posterior_from_summary_csv("tests/output_capacitor_complete/mcmc_summary__9.csv")
 #plot_posterior_from_samples("tests/output_pcb_trace_impedance/mcmc_samples__1.npz")
 #plot_posterior_from_summary_csv("tests/output_pcb_trace_impedance/mcmc_summary__1.csv")
 

@@ -87,7 +87,7 @@ print("true_tau:", true_tau)
 ######################--Generate Observed-Data--######################
 
 # Number of Observed samples
-n_samples = 100
+n_samples = 110
 
 # Scale true values using your scaling function
 scaled_true_u_0 = min_max_scale_jax(true_u_0, u_0_min, u_0_max)
@@ -109,7 +109,7 @@ y_obs_noise_free = y_obs_noise_free[None, :]  # shape: (1, len(t_a))
 
 # Generiere White Noise für alle Samples
 key_noise = jax.random.PRNGKey(43)
-noise = 0.01 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
+noise = 0.2 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
 
 # Addiere Noise zu jeder Kurve
 true_y_obs = y_obs_noise_free + noise  # shape: (n_samples, len(t_a))
@@ -121,7 +121,7 @@ scaled_y_obs = min_max_scale_jax(true_y_obs, u_t_min, u_t_max)
 ######################--Generate Training-Data--######################
 
 # Number of training Points and Parameters
-n_train = 110
+n_train = 300
 n_params = real_true_paras_obs.shape
 
 # LHS in Range [0,1] for every Dimension

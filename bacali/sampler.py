@@ -110,7 +110,7 @@ class BayesCalibrator:
         param_count = len(self.model_parameters_string)
         self.prior_mean = jnp.full((param_count,), 0.5)
         self.prior_std = jnp.full((param_count,), 0.2)
-        self.white_noise_std = 0.02
+        self.white_noise_std = 0.001
         
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
