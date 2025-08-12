@@ -223,7 +223,7 @@ class BayesCalibrator:
         if self.max_tree_depth is None:
             kernel = NUTS(self.baysian_model, dense_mass=self.dense_mass)
         else:
-            kernel = NUTS(self.baysian_model, max_tree_depth=self.max_tree_depth dense_mass=self.dense_mass)
+            kernel = NUTS(self.baysian_model, max_tree_depth=self.max_tree_depth, dense_mass=self.dense_mass)
         mcmc = MCMC(
             kernel,
             num_samples=num_samples or 50000,
