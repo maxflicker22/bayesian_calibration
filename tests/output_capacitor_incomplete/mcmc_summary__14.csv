@@ -1,0 +1,4 @@
+,mean,sd,hdi_3%,hdi_97%,mcse_mean,mcse_sd,ess_bulk,ess_tail,r_hat
+tau_scaled,0.453,0.0,0.453,0.453,0.0,0.0,1.0,3.0,
+u0_scaled,0.828,0.0,0.828,0.828,0.0,0.0,1.0,5.0,
+white_noise,-0.114,0.0,-0.115,-0.113,0.0,0.0,2.0,4.0,

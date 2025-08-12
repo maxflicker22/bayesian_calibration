@@ -92,7 +92,8 @@ class BayesCalibrator:
         observed_data: jnp.ndarray,
         model_function_parameters: Optional[Dict] = None,
         output_dir: str = "mcmc_output",
-        dense_mass: bool = False):
+        dense_mass: bool = False,
+        max_tree_depth: int = None):
 
         # Initialize attributes
         self.model_function = model_function
@@ -101,6 +102,7 @@ class BayesCalibrator:
         self.model_function_parameters = model_function_parameters or {}
         self.output_dir = output_dir
         self.dense_mass = dense_mass
+        self.max_tree_depth = max_tree_depth
         
         # Set default prior: Normal(0.5, 0.2) with truncation [0, 1]
         self.normal_prior = True
@@ -218,7 +220,10 @@ class BayesCalibrator:
         """
         
         # Build the model
-        kernel = NUTS(self.baysian_model, dense_mass=self.dense_mass)
+        if self.max_tree_depth is None:
+            kernel = NUTS(self.baysian_model, dense_mass=self.dense_mass)
+        else:
+            kernel = NUTS(self.baysian_model, max_tree_depth=self.max_tree_depth dense_mass=self.dense_mass)
         mcmc = MCMC(
             kernel,
             num_samples=num_samples or 50000,

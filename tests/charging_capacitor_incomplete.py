@@ -198,7 +198,7 @@ Bacali = BayesCalibrator(
 Bacali.adjust_prior() # Uniform prior for all parameters
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=5000, num_chains=2)
+Bacali.sample_from_chain(num_samples=10000, num_chains=4)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -261,10 +261,12 @@ t_plot = jnp.linspace(0, float(t_a.max()) + 0.1, 200)
 # Berechne Spannung für true und found Parameter über t_plot
 v_true = charging_capacitor_taylor_1(t_plot, float(true_u_0), float(true_tau))
 v_found = charging_capacitor_taylor_1(t_plot, float(found_u_0), float(found_tau))
+v_true_complete = charging_capacitor_model(t_plot, float(true_u_0), float(true_tau))
 
 plt.figure(figsize=(8, 5))
 plt.plot(t_plot, v_true, label=f"True: $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="green", linewidth=2)
 plt.plot(t_plot, v_found, label=f"Found: $u_0$={float(found_u_0):.3f}, $\\tau$={float(found_tau):.3f}", color="red", linestyle="--", linewidth=2)
+plt.plot(t_plot, v_true_complete, label=f"Complete True: $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="blue", linestyle="--", linewidth=2)
 
 # Vertikale Linien für alle t_a Werte
 for t_val in jnp.array(t_a):
