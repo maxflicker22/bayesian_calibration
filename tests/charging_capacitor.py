@@ -196,7 +196,7 @@ Bacali = BayesCalibrator(
 Bacali.adjust_prior() # Uniform prior for all parameters
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=5000, num_chains=2)
+Bacali.sample_from_chain(num_samples=5000, num_chains=4)
 
 
 #-----------------------------------------------------------------------------------------------------

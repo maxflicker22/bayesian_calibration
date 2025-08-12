@@ -242,7 +242,7 @@ found_tau     = inverse_min_max_scale_jax(posterior_means["tau_scaled"], tau_min
 
 # Calculate impedance for found parameters
 found_u_t = charging_capacitor_taylor_1(t_a, found_u_0, found_tau).squeeze()
-true_y_obs = charging_capacitor_taylor_1(t_a, true_u_0, true_tau).squeeze()
+true_y_obs = charging_capacitor_model(t_a, true_u_0, true_tau).squeeze()
 
 # Compare to true impedance
 print("\n--- Impedance Comparison ---")
@@ -264,15 +264,15 @@ v_found = charging_capacitor_taylor_1(t_plot, float(found_u_0), float(found_tau)
 v_true_complete = charging_capacitor_model(t_plot, float(true_u_0), float(true_tau))
 
 plt.figure(figsize=(8, 5))
-plt.plot(t_plot, v_true, label=f"True: $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="green", linewidth=2)
-plt.plot(t_plot, v_found, label=f"Found: $u_0$={float(found_u_0):.3f}, $\\tau$={float(found_tau):.3f}", color="red", linestyle="--", linewidth=2)
-plt.plot(t_plot, v_true_complete, label=f"Complete True: $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="blue", linestyle="--", linewidth=2)
+plt.plot(t_plot, v_true, label=f"Incomplete Model with $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="green", linewidth=2)
+plt.plot(t_plot, v_found, label=f"Incomplete Model with Found: $u_0$={float(found_u_0):.3f}, $\\tau$={float(found_tau):.3f}", color="red", linestyle="--", linewidth=2)
+plt.plot(t_plot, v_true_complete, label=f"Complete Model with $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="blue", linestyle="--", linewidth=2)
 
 # Vertikale Linien für alle t_a Werte
 for t_val in jnp.array(t_a):
     plt.axvline(float(t_val), color='blue', linestyle=':', alpha=0.7, label='t_a' if t_val == t_a[0] else None)
-    plt.scatter(t_a, true_y_obs, color='green', marker='o', label='True Observations' if t_val == t_a[0] else None, s=50)
-    plt.scatter(t_a, y_pred_mean_real, color='black', marker='x', label='GP Prediction' if t_val == t_a[0] else None, s=50)
+    plt.scatter(t_a, true_y_obs, color='blue', marker='o', label='Observations Complete Model' if t_val == t_a[0] else None, s=50)
+    plt.scatter(t_a, y_pred_mean_real, color='black', marker='x', label=f'GP Prediction with $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}' if t_val == t_a[0] else None, s=50)
 
 
 plt.xlabel("Time $t$")

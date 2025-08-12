@@ -201,7 +201,7 @@ class BayesCalibrator:
 
         # Get predictive mean and variance from model
         mu_func, var_func = self.model_function(jnp_params, **self.model_function_parameters)
-
+ 
         # Add White Noise to variance
         sigma = jnp.sqrt(var_func + white_noise ** 2)
 

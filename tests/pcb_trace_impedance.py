@@ -62,7 +62,7 @@ import json
 from helper_functions.functions import load_pcb_config, min_max_scale_jax
 from helper_functions.functions import inverse_min_max_scale_jax, impedance_pcb_trace
 from helper_functions.gaussian_process_functions import gp_posterior
-from helper_functions.analysis import store_model_values_results, store_posterior_covariance, mean_comparison
+
 
 import bacali
 print(bacali.__file__)

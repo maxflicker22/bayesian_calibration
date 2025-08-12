@@ -201,7 +201,7 @@ class BayesCalibrator:
 
         # Get predictive mean and variance from model
         mu_func, var_func = self.model_function(jnp_params, **self.model_function_parameters)
-
+ 
         # Add White Noise to variance
         sigma = jnp.sqrt(var_func + white_noise ** 2)
 
@@ -223,7 +223,7 @@ class BayesCalibrator:
         if self.max_tree_depth is None:
             kernel = NUTS(self.baysian_model, dense_mass=self.dense_mass)
         else:
-            kernel = NUTS(self.baysian_model, max_tree_depth=self.max_tree_depth dense_mass=self.dense_mass)
+            kernel = NUTS(self.baysian_model, max_tree_depth=self.max_tree_depth, dense_mass=self.dense_mass)
         mcmc = MCMC(
             kernel,
             num_samples=num_samples or 50000,
