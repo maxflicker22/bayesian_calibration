@@ -111,7 +111,7 @@ y_obs_noise_free = y_obs_noise_free[None, :]  # shape: (1, len(t_a))
 
 # Generiere White Noise für alle Samples
 key_noise = jax.random.PRNGKey(43)
-noise = 0.2 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
+noise = 0.05 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
 
 # Addiere Noise zu jeder Kurve
 true_y_obs = y_obs_noise_free + noise  # shape: (n_samples, len(t_a))
@@ -195,10 +195,10 @@ Bacali = BayesCalibrator(
     output_dir="tests/output_capacitor_incomplete")
 
 # Optional: adjust Prior 
-Bacali.adjust_prior() # Uniform prior for all parameters
+#Bacali.adjust_prior() 
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=10000, num_chains=4)
+Bacali.sample_from_chain(num_samples=2000, num_chains=16)
 
 
 #-----------------------------------------------------------------------------------------------------

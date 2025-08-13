@@ -109,7 +109,7 @@ y_obs_noise_free = y_obs_noise_free[None, :]  # shape: (1, len(t_a))
 
 # Generiere White Noise für alle Samples
 key_noise = jax.random.PRNGKey(43)
-noise = 0.2 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
+noise = 0.05 * jax.random.normal(key_noise, shape=(n_samples, len(t_a)))  # shape: (n_samples, len(t_a))
 
 # Addiere Noise zu jeder Kurve
 true_y_obs = y_obs_noise_free + noise  # shape: (n_samples, len(t_a))
@@ -196,7 +196,7 @@ Bacali = BayesCalibrator(
 Bacali.adjust_prior() # Uniform prior for all parameters
 
 # Sample from chain
-Bacali.sample_from_chain(num_samples=5000, num_chains=4)
+Bacali.sample_from_chain(num_samples=2000, num_chains=16)
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -268,14 +268,14 @@ v_true = charging_capacitor_model(t_plot, float(true_u_0), float(true_tau))
 v_found = charging_capacitor_model(t_plot, float(found_u_0), float(found_tau))
 
 plt.figure(figsize=(8, 5))
-plt.plot(t_plot, v_true, label=f"True: $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="green", linewidth=2)
-plt.plot(t_plot, v_found, label=f"Found: $u_0$={float(found_u_0):.3f}, $\\tau$={float(found_tau):.3f}", color="red", linestyle="--", linewidth=2)
+plt.plot(t_plot, v_true, label=f"Complete Model with $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}", color="green", linewidth=2)
+plt.plot(t_plot, v_found, label=f"Complete Model with Found: $u_0$={float(found_u_0):.3f}, $\\tau$={float(found_tau):.3f}", color="red", linestyle="--", linewidth=2)
 
 # Vertikale Linien für alle t_a Werte
 for t_val in jnp.array(t_a):
     plt.axvline(float(t_val), color='blue', linestyle=':', alpha=0.7, label='t_a' if t_val == t_a[0] else None)
-    plt.scatter(t_a, true_y_obs, color='green', marker='o', label='True Observations' if t_val == t_a[0] else None, s=50)
-    plt.scatter(t_a, y_pred_mean_real, color='black', marker='x', label='GP Prediction' if t_val == t_a[0] else None, s=50)
+    plt.scatter(t_a, true_y_obs, color='blue', marker='o', label='Observations Complete Model' if t_val == t_a[0] else None, s=50)
+    plt.scatter(t_a, y_pred_mean_real, color='black', marker='x', label=f'GP Prediction with $u_0$={float(true_u_0):.3f}, $\\tau$={float(true_tau):.3f}' if t_val == t_a[0] else None, s=50)
 
 
 plt.xlabel("Time $t$")
